@@ -1,6 +1,16 @@
 package generator
 
-const modelTemplate = `package {{.PkgName}}
+var goTemplates = map[string]string{
+	"models":       goModelTemplate,
+	"schemas":      goSchemaTemplate,
+	"ports":        goPortTemplate,
+	"repositories": goRepositoryTemplate,
+	"services":     goServiceTemplate,
+	"controllers":  goControllerTemplate,
+	"routes":       goRouteTemplate,
+}
+
+const goModelTemplate = `package {{.PkgName}}
 
 // {{.Entity}} represents a domain model.
 type {{.Entity}} struct {
@@ -8,7 +18,7 @@ type {{.Entity}} struct {
 }
 `
 
-const schemaTemplate = `package {{.PkgName}}
+const goSchemaTemplate = `package {{.PkgName}}
 
 // {{.Entity}}Schema represents the data structure for persistence or API representation.
 type {{.Entity}}Schema struct {
@@ -16,7 +26,7 @@ type {{.Entity}}Schema struct {
 }
 `
 
-const portTemplate = `package {{.PkgName}}
+const goPortTemplate = `package {{.PkgName}}
 
 import "{{.Module}}/{{.ModelsPath}}"
 
@@ -29,7 +39,7 @@ type {{.Entity}}Service interface {
 }
 `
 
-const repositoryTemplate = `package {{.PkgName}}
+const goRepositoryTemplate = `package {{.PkgName}}
 
 import (
 	"{{.Module}}/{{.PortsPath}}"
@@ -44,7 +54,7 @@ func New{{.Entity}}Repository() {{.PortsPath | base}}.{{.Entity}}Repository {
 }
 `
 
-const serviceTemplate = `package {{.PkgName}}
+const goServiceTemplate = `package {{.PkgName}}
 
 import (
 	"{{.Module}}/{{.PortsPath}}"
@@ -61,7 +71,7 @@ func New{{.Entity}}Service(repo {{.PortsPath | base}}.{{.Entity}}Repository) {{.
 }
 `
 
-const controllerTemplate = `package {{.PkgName}}
+const goControllerTemplate = `package {{.PkgName}}
 
 import (
 	"github.com/gofiber/fiber/v2"
@@ -87,7 +97,7 @@ func (c *{{.Entity}}Controller) Create(ctx *fiber.Ctx) error {
 }
 `
 
-const routeTemplate = `package {{.PkgName}}
+const goRouteTemplate = `package {{.PkgName}}
 
 import (
 	"github.com/gofiber/fiber/v2"

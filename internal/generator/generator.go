@@ -27,22 +27,34 @@ type TemplateData struct {
 }
 
 type AnvilConfig struct {
-	Paths map[string]string `json:"paths"`
+	Language  string            `json:"language"`
+	Extension string            `json:"extension"`
+	Paths     map[string]string `json:"paths"`
 }
 
-// getModuleName extracts the module name from the go.mod file, fallback if not found
-func getModuleName() string {
-	file, err := os.Open("go.mod")
-	if err != nil {
-		return "your_project"
-	}
-	defer file.Close()
-
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		line := scanner.Text()
-		if strings.HasPrefix(line, "module ") {
-			return strings.TrimSpace(strings.TrimPrefix(line, "module "))
+// getModuleName extracts the module name from the configuration based on semantics
+func getModuleName(lang string) string {
+	if lang == "go" || lang == "" {
+		file, err := os.Open("go.mod")
+		if err == nil {
+			defer file.Close()
+			scanner := bufio.NewScanner(file)
+			for scanner.Scan() {
+				line := scanner.Text()
+				if strings.HasPrefix(line, "module ") {
+					return strings.TrimSpace(strings.TrimPrefix(line, "module "))
+				}
+			}
+		}
+	} else if lang == "typescript" || lang == "ts" {
+		file, err := os.ReadFile("package.json")
+		if err == nil {
+			var pkg map[string]interface{}
+			if json.Unmarshal(file, &pkg) == nil {
+				if name, ok := pkg["name"].(string); ok {
+					return name
+				}
+			}
 		}
 	}
 	return "your_project"
@@ -81,10 +93,20 @@ func GenerateModule(entity string) error {
 		}
 	}
 
+	lang := anvilCfg.Language
+	if lang == "" {
+		lang = "go"
+	}
+
+	ext := anvilCfg.Extension
+	if ext == "" {
+		ext = ".go"
+	}
+
 	data := TemplateData{
 		Entity:      entityUpper,
 		EntityLower: strings.ToLower(entity),
-		Module:      getModuleName(),
+		Module:      getModuleName(lang),
 	}
 
 	parsePath := func(p string) string {
@@ -101,7 +123,7 @@ func GenerateModule(entity string) error {
 
 	resolveImportDir := func(p string) string {
 		p = parsePath(p)
-		if strings.HasSuffix(p, ".go") {
+		if strings.HasSuffix(p, ext) {
 			return filepath.Dir(p)
 		}
 		return p
@@ -115,20 +137,21 @@ func GenerateModule(entity string) error {
 	data.ControllersPath = resolveImportDir(targets["controllers"])
 	data.RoutesPath = resolveImportDir(targets["routes"])
 
-	templatesMap := map[string]string{
-		"models":       modelTemplate,
-		"schemas":      schemaTemplate,
-		"ports":        portTemplate,
-		"repositories": repositoryTemplate,
-		"services":     serviceTemplate,
-		"controllers":  controllerTemplate,
-		"routes":       routeTemplate,
+	var templatesMap map[string]string
+	switch lang {
+	case "typescript", "ts":
+		templatesMap = tsTemplates
+	case "python", "py":
+		templatesMap = pyTemplates
+	default:
+		templatesMap = goTemplates
 	}
 
 	fmt.Printf("Generating scaffolding for module %q...\n", data.Entity)
 
 	funcMap := template.FuncMap{
-		"base": filepath.Base,
+		"base":    filepath.Base,
+		"replace": strings.ReplaceAll,
 	}
 
 	for key, folderRaw := range targets {
@@ -146,11 +169,11 @@ func GenerateModule(entity string) error {
 		}
 
 		var filePath string
-		if strings.HasSuffix(folder, ".go") {
+		if strings.HasSuffix(folder, ext) {
 			filePath = folder
 			folder = filepath.Dir(filePath)
 		} else {
-			filePath = filepath.Join(folder, fmt.Sprintf("%s.go", data.EntityLower))
+			filePath = filepath.Join(folder, fmt.Sprintf("%s%s", data.EntityLower, ext))
 		}
 
 		if err := os.MkdirAll(folder, 0755); err != nil {

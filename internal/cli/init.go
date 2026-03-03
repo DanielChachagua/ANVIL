@@ -4,23 +4,28 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/spf13/cobra"
 )
 
 var archConfigs = map[string]string{
 	"hexagonal": `{
+  "language": "LANG_PLACEHOLDER",
+  "extension": "EXT_PLACEHOLDER",
   "paths": {
-    "models": "internal/{{.EntityLower}}/domain/models.go",
-    "schemas": "internal/{{.EntityLower}}/infrastructure/repository/schemas.go",
-    "ports": "internal/{{.EntityLower}}/domain/ports.go",
-    "services": "internal/{{.EntityLower}}/application/services.go",
-    "repositories": "internal/{{.EntityLower}}/infrastructure/repository/repository.go",
-    "controllers": "internal/{{.EntityLower}}/infrastructure/handler/http/controller.go",
-    "routes": "internal/{{.EntityLower}}/infrastructure/handler/http/routes.go"
+    "models": "internal/{{.EntityLower}}/domain/modelsEXT_PLACEHOLDER",
+    "schemas": "internal/{{.EntityLower}}/infrastructure/repository/schemasEXT_PLACEHOLDER",
+    "ports": "internal/{{.EntityLower}}/domain/portsEXT_PLACEHOLDER",
+    "services": "internal/{{.EntityLower}}/application/servicesEXT_PLACEHOLDER",
+    "repositories": "internal/{{.EntityLower}}/infrastructure/repository/repositoryEXT_PLACEHOLDER",
+    "controllers": "internal/{{.EntityLower}}/infrastructure/handler/http/controllerEXT_PLACEHOLDER",
+    "routes": "internal/{{.EntityLower}}/infrastructure/handler/http/routesEXT_PLACEHOLDER"
   }
 }`,
 	"clean": `{
+  "language": "LANG_PLACEHOLDER",
+  "extension": "EXT_PLACEHOLDER",
   "paths": {
     "models": "domain/models",
     "schemas": "infrastructure/schemas",
@@ -32,6 +37,8 @@ var archConfigs = map[string]string{
   }
 }`,
 	"n-tier": `{
+  "language": "LANG_PLACEHOLDER",
+  "extension": "EXT_PLACEHOLDER",
   "paths": {
     "models": "models",
     "schemas": "schemas",
@@ -45,6 +52,7 @@ var archConfigs = map[string]string{
 }
 
 var arch string
+var lang string
 
 var initCmd = &cobra.Command{
 	Use:   "init [path]",
@@ -72,12 +80,28 @@ var initCmd = &cobra.Command{
 			return fmt.Errorf("unsupported architecture: %s. Available options: hexagonal, clean, n-tier", arch)
 		}
 
+		ext := ".go"
+		switch lang {
+		case "typescript", "ts":
+			ext = ".ts"
+			lang = "typescript"
+		case "python", "py":
+			ext = ".py"
+			lang = "python"
+		default:
+			ext = ".go"
+			lang = "go"
+		}
+
+		configData = strings.ReplaceAll(configData, "LANG_PLACEHOLDER", lang)
+		configData = strings.ReplaceAll(configData, "EXT_PLACEHOLDER", ext)
+
 		err := os.WriteFile(filePath, []byte(configData), 0644)
 		if err != nil {
 			return fmt.Errorf("could not write anvil.json: %w", err)
 		}
 
-		if arch == "hexagonal" {
+		if arch == "hexagonal" && lang == "go" {
 			os.MkdirAll(filepath.Join(dir, "cmd", "api"), 0755)
 			os.MkdirAll(filepath.Join(dir, "cmd", "grpc"), 0755)
 			os.MkdirAll(filepath.Join(dir, "internal", "platform", "database"), 0755)
@@ -90,12 +114,13 @@ var initCmd = &cobra.Command{
 			fmt.Printf("Scaffolded base Domain-Oriented Hexagonal structure in %s\n", dir)
 		}
 
-		fmt.Printf("Successfully created %s for %q architecture\n", filePath, arch)
+		fmt.Printf("Successfully created %s for %q architecture (%q language)\n", filePath, arch, lang)
 		return nil
 	},
 }
 
 func init() {
 	initCmd.Flags().StringVarP(&arch, "arch", "a", "hexagonal", "Architecture type (hexagonal, clean, n-tier)")
+	initCmd.Flags().StringVarP(&lang, "lang", "l", "go", "Language to use (go, typescript, python)")
 	rootCmd.AddCommand(initCmd)
 }
