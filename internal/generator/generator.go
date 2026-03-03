@@ -2,6 +2,7 @@ package generator
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -81,17 +82,38 @@ func GenerateModule(entity string) error {
 	}
 
 	data := TemplateData{
-		Entity:          entityUpper,
-		EntityLower:     strings.ToLower(entity),
-		Module:          getModuleName(),
-		ModelsPath:      targets["models"],
-		SchemasPath:     targets["schemas"],
-		PortsPath:       targets["ports"],
-		ReposPath:       targets["repositories"],
-		ServicesPath:    targets["services"],
-		ControllersPath: targets["controllers"],
-		RoutesPath:      targets["routes"],
+		Entity:      entityUpper,
+		EntityLower: strings.ToLower(entity),
+		Module:      getModuleName(),
 	}
+
+	parsePath := func(p string) string {
+		t, err := template.New("path").Parse(p)
+		if err != nil {
+			return p
+		}
+		var buf bytes.Buffer
+		if err := t.Execute(&buf, data); err != nil {
+			return p
+		}
+		return buf.String()
+	}
+
+	resolveImportDir := func(p string) string {
+		p = parsePath(p)
+		if strings.HasSuffix(p, ".go") {
+			return filepath.Dir(p)
+		}
+		return p
+	}
+
+	data.ModelsPath = resolveImportDir(targets["models"])
+	data.SchemasPath = resolveImportDir(targets["schemas"])
+	data.PortsPath = resolveImportDir(targets["ports"])
+	data.ReposPath = resolveImportDir(targets["repositories"])
+	data.ServicesPath = resolveImportDir(targets["services"])
+	data.ControllersPath = resolveImportDir(targets["controllers"])
+	data.RoutesPath = resolveImportDir(targets["routes"])
 
 	templatesMap := map[string]string{
 		"models":       modelTemplate,
@@ -109,11 +131,13 @@ func GenerateModule(entity string) error {
 		"base": filepath.Base,
 	}
 
-	for key, folder := range targets {
-		if folder == "" || folder == "-" || folder == "false" {
+	for key, folderRaw := range targets {
+		if folderRaw == "" || folderRaw == "-" || folderRaw == "false" {
 			// Skip this layer if the path is explicitly disabled
 			continue
 		}
+
+		folder := parsePath(folderRaw)
 
 		tmplStr, ok := templatesMap[key]
 		if !ok {
@@ -121,11 +145,17 @@ func GenerateModule(entity string) error {
 			continue
 		}
 
+		var filePath string
+		if strings.HasSuffix(folder, ".go") {
+			filePath = folder
+			folder = filepath.Dir(filePath)
+		} else {
+			filePath = filepath.Join(folder, fmt.Sprintf("%s.go", data.EntityLower))
+		}
+
 		if err := os.MkdirAll(folder, 0755); err != nil {
 			return fmt.Errorf("failed to create directory %s: %w", folder, err)
 		}
-
-		filePath := filepath.Join(folder, fmt.Sprintf("%s.go", data.EntityLower))
 		if _, err := os.Stat(filePath); err == nil {
 			fmt.Printf("File %s already exists, skipping.\n", filePath)
 			continue

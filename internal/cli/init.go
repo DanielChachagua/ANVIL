@@ -11,13 +11,13 @@ import (
 var archConfigs = map[string]string{
 	"hexagonal": `{
   "paths": {
-    "models": "-",
-    "schemas": "",
-    "ports": "internal/core/ports",
-    "services": "internal/core/services",
-    "repositories": "internal/adapters/repositories",
-    "controllers": "internal/adapters/handlers",
-    "routes": "internal/adapters/routes"
+    "models": "internal/{{.EntityLower}}/domain/models.go",
+    "schemas": "internal/{{.EntityLower}}/infrastructure/repository/schemas.go",
+    "ports": "internal/{{.EntityLower}}/domain/ports.go",
+    "services": "internal/{{.EntityLower}}/application/services.go",
+    "repositories": "internal/{{.EntityLower}}/infrastructure/repository/repository.go",
+    "controllers": "internal/{{.EntityLower}}/infrastructure/handler/http/controller.go",
+    "routes": "internal/{{.EntityLower}}/infrastructure/handler/http/routes.go"
   }
 }`,
 	"clean": `{
@@ -75,6 +75,19 @@ var initCmd = &cobra.Command{
 		err := os.WriteFile(filePath, []byte(configData), 0644)
 		if err != nil {
 			return fmt.Errorf("could not write anvil.json: %w", err)
+		}
+
+		if arch == "hexagonal" {
+			os.MkdirAll(filepath.Join(dir, "cmd", "api"), 0755)
+			os.MkdirAll(filepath.Join(dir, "cmd", "grpc"), 0755)
+			os.MkdirAll(filepath.Join(dir, "internal", "platform", "database"), 0755)
+			os.MkdirAll(filepath.Join(dir, "internal", "platform", "cache"), 0755)
+			os.MkdirAll(filepath.Join(dir, "internal", "platform", "migrations"), 0755)
+			os.MkdirAll(filepath.Join(dir, "internal", "platform", "middleware"), 0755)
+			os.MkdirAll(filepath.Join(dir, "internal", "platform", "utils"), 0755)
+			os.MkdirAll(filepath.Join(dir, "internal", "platform", "validator"), 0755)
+			os.MkdirAll(filepath.Join(dir, "internal", "dependencies"), 0755)
+			fmt.Printf("Scaffolded base Domain-Oriented Hexagonal structure in %s\n", dir)
 		}
 
 		fmt.Printf("Successfully created %s for %q architecture\n", filePath, arch)
